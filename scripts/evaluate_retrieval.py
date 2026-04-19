@@ -8,6 +8,8 @@ Supported methods:
 
 - bm25: the original rule-based/statistical baseline
 - dense: a pre-trained SentenceTransformer dense retriever
+- dense_code: dense retrieval constrained by course/program code in the question
+- hybrid: reciprocal-rank fusion of BM25 and code-constrained dense retrieval
 
 Example usage from the project root:
 
@@ -29,6 +31,16 @@ Example usage from the project root:
         --chunks data/parsed/chunks.jsonl `
         --dense-index data/index/dense_index.npz `
         --out-dir data/results/dense `
+        --top-k 1 3 5
+
+    # Hybrid retrieval: BM25 + code-constrained dense retrieval
+    python scripts/evaluate_retrieval.py `
+        --method hybrid `
+        --annotations annotations.csv `
+        --chunks data/parsed/chunks.jsonl `
+        --index data/index/bm25_index.json `
+        --dense-index data/index/dense_index.npz `
+        --out-dir data/results/hybrid `
         --top-k 1 3 5
 """
 
@@ -156,6 +168,78 @@ def retrieve_bm25(
     return [(chunks[i], float(score)) for i, score in ranked]
 
 
+def retrieve_hybrid(
+    question: str,
+    chunks: Sequence[Chunk],
+    bm25_index: Dict[str, Any],
+    dense_index: Dict[str, Any],
+    limit: int,
+    dense_model_name: str | None = None,
+    pool_size: int = 50,
+    rrf_k: float = 60.0,
+    bm25_weight: float = 0.7,
+    dense_weight: float = 0.3,
+) -> List[Tuple[Chunk, float]]:
+    """Fuse BM25 and code-constrained dense retrieval using weighted RRF.
+
+    BM25 is strong at exact course/program code matching, while dense retrieval can
+    sometimes rank the right evidence section higher once the correct page is in
+    the candidate pool. Weighted reciprocal-rank fusion avoids mixing raw BM25 and
+    cosine score scales directly.
+    """
+    if not question.strip():
+        return []
+
+    candidate_limit = max(int(pool_size), int(limit), 1)
+    bm25_results = retrieve_bm25(question, chunks, bm25_index, candidate_limit)
+
+    from unsw_handbook.dense_index import retrieve_dense
+
+    dense_results = retrieve_dense(
+        question=question,
+        chunks=chunks,
+        dense_index=dense_index,
+        limit=candidate_limit,
+        model_name=dense_model_name,
+        constrain_to_question_code=True,
+    )
+
+    fused: Dict[str, Dict[str, Any]] = {}
+
+    def add_results(results: Sequence[Tuple[Chunk, float]], weight: float, source_name: str) -> None:
+        for rank, (chunk, original_score) in enumerate(results, start=1):
+            chunk_id = str(chunk.get("chunk_id", ""))
+            if not chunk_id:
+                continue
+            item = fused.setdefault(
+                chunk_id,
+                {
+                    "chunk": chunk,
+                    "score": 0.0,
+                    "bm25_rank": "",
+                    "dense_rank": "",
+                    "bm25_score": "",
+                    "dense_score": "",
+                },
+            )
+            item["score"] += float(weight) / (float(rrf_k) + float(rank))
+            item[f"{source_name}_rank"] = rank
+            item[f"{source_name}_score"] = float(original_score)
+
+    add_results(bm25_results, bm25_weight, "bm25")
+    add_results(dense_results, dense_weight, "dense")
+
+    ranked = sorted(
+        fused.values(),
+        key=lambda item: (
+            -float(item["score"]),
+            int(item["bm25_rank"] or 10**9),
+            int(item["dense_rank"] or 10**9),
+        ),
+    )
+    return [(item["chunk"], float(item["score"])) for item in ranked[:limit]]
+
+
 def retrieve_with_method(
     method: str,
     question: str,
@@ -164,6 +248,10 @@ def retrieve_with_method(
     bm25_index: Dict[str, Any] | None = None,
     dense_index: Dict[str, Any] | None = None,
     dense_model_name: str | None = None,
+    hybrid_pool_size: int = 50,
+    hybrid_rrf_k: float = 60.0,
+    hybrid_bm25_weight: float = 0.7,
+    hybrid_dense_weight: float = 0.3,
 ) -> List[Tuple[Chunk, float]]:
     """Dispatch retrieval to the selected method."""
     if method == "bm25":
@@ -183,6 +271,24 @@ def retrieve_with_method(
             limit=limit,
             model_name=dense_model_name,
             constrain_to_question_code=(method == "dense_code"),
+        )
+
+    if method == "hybrid":
+        if bm25_index is None:
+            raise ValueError("BM25 index is not loaded.")
+        if dense_index is None:
+            raise ValueError("Dense index is not loaded.")
+        return retrieve_hybrid(
+            question=question,
+            chunks=chunks,
+            bm25_index=bm25_index,
+            dense_index=dense_index,
+            limit=limit,
+            dense_model_name=dense_model_name,
+            pool_size=hybrid_pool_size,
+            rrf_k=hybrid_rrf_k,
+            bm25_weight=hybrid_bm25_weight,
+            dense_weight=hybrid_dense_weight,
         )
 
     raise ValueError(f"Unsupported retrieval method: {method}")
@@ -365,7 +471,7 @@ def main() -> None:
     parser.add_argument(
         "--method",
         default="bm25",
-        choices=["bm25", "dense", "dense_code"],
+        choices=["bm25", "dense", "dense_code", "hybrid"],
         help="Retrieval method to evaluate.",
     )
     parser.add_argument(
@@ -376,13 +482,37 @@ def main() -> None:
     parser.add_argument(
         "--dense-index",
         default="data/index/dense_index.npz",
-        help="Path to dense_index.npz for --method dense.",
+        help="Path to dense_index.npz for --method dense/dense_code/hybrid.",
     )
     parser.add_argument(
         "--model-name",
         default="",
         help="Optional SentenceTransformer model name/local path for dense query encoding. "
         "If omitted, the model name saved in the dense index is used.",
+    )
+    parser.add_argument(
+        "--hybrid-pool-size",
+        type=int,
+        default=50,
+        help="Candidate pool size for hybrid retrieval before fusion.",
+    )
+    parser.add_argument(
+        "--hybrid-rrf-k",
+        type=float,
+        default=60.0,
+        help="RRF smoothing constant for hybrid retrieval.",
+    )
+    parser.add_argument(
+        "--hybrid-bm25-weight",
+        type=float,
+        default=0.7,
+        help="BM25 weight for hybrid retrieval.",
+    )
+    parser.add_argument(
+        "--hybrid-dense-weight",
+        type=float,
+        default=0.3,
+        help="Dense retrieval weight for hybrid retrieval.",
     )
     parser.add_argument(
         "--top-k",
@@ -412,12 +542,12 @@ def main() -> None:
     bm25_index: Dict[str, Any] | None = None
     dense_index: Dict[str, Any] | None = None
 
-    if args.method == "bm25":
+    if args.method in {"bm25", "hybrid"}:
         if args.index:
             bm25_index = load_bm25_index(args.index)
         else:
             bm25_index = build_bm25_index(chunks)
-    elif args.method in {"dense", "dense_code"}:
+    if args.method in {"dense", "dense_code", "hybrid"}:
         try:
             from unsw_handbook.dense_index import load_dense_index
         except ImportError as exc:
@@ -439,13 +569,22 @@ def main() -> None:
             bm25_index=bm25_index,
             dense_index=dense_index,
             dense_model_name=(args.model_name or None),
+            hybrid_pool_size=args.hybrid_pool_size,
+            hybrid_rrf_k=args.hybrid_rrf_k,
+            hybrid_bm25_weight=args.hybrid_bm25_weight,
+            hybrid_dense_weight=args.hybrid_dense_weight,
         )
         predictions.append(evaluate_one(ann, retrieved, chunk_by_id, top_k_values))
 
     metrics = aggregate_metrics(predictions, top_k_values)
     metrics["method"] = args.method
-    if args.method in {"dense", "dense_code"} and dense_index is not None:
+    if args.method in {"dense", "dense_code", "hybrid"} and dense_index is not None:
         metrics["dense_model_name"] = dense_index.get("metadata", {}).get("model_name", "")
+    if args.method == "hybrid":
+        metrics["hybrid_pool_size"] = args.hybrid_pool_size
+        metrics["hybrid_rrf_k"] = args.hybrid_rrf_k
+        metrics["hybrid_bm25_weight"] = args.hybrid_bm25_weight
+        metrics["hybrid_dense_weight"] = args.hybrid_dense_weight
 
     by_section = aggregate_by_group(predictions, "gold_section", top_k_values)
     by_page_type = aggregate_by_group(predictions, "page_type", top_k_values)
