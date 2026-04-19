@@ -1,5 +1,161 @@
-course_code,title_hint
-COMP6713,Natural Language Processing
-COMP1511,Programming Fundamentals
-COMP2521,Data Structures and Algorithms
-MATH1131,Mathematics 1A
+﻿course_code,title_hint
+ANAT2511,Fundamentals of Anatomy
+BABS1201,"Molecules, Cells and Genes"
+BIOM9020,Masters Project A
+BIOM9021,Masters Project B
+BIOM9332,Biocompatibility
+BIOM9333,Cellular and Tissue Engineering
+BIOM9410,Regulatory Requirements of Biomedical Technology
+BIOM9420,Clinical Laboratory Science
+BIOM9551,Biomechanics of Physical Rehabilitation
+BIOM9561,Mechanical Properties of Biomaterials
+BIOM9640,Biomedical Instrumentation
+BIOM9660,Implantable Bionics
+BIOM9914,Masters Project
+COMM5709,Corporate Responsibility and Accountability
+COMP6441,Security Engineering and Cyber Security
+COMP6443,Web Application Security and Testing
+COMP6445,Digital Forensics
+COMP6714,Information Retrieval and Web Search
+COMP6721,(In-)Formal Methods: The Lost Art
+COMP6841,Extended Security Engineering and Cyber Security
+COMP6843,Extended Web Application Security and Testing
+COMP6845,Extended Digital Forensics and Incident Response
+COMP9020,Foundations of Computer Science
+COMP9021,Principles of Programming
+COMP9024,Data Structures and Algorithms
+COMP9301,Cyber Security Project
+COMP9302,Cyber Security Project B
+COMP9311,Database Systems
+COMP9312,Data Analytics for Graphs
+COMP9313,Big Data Management
+COMP9315,Database Systems Implementation
+COMP9318,Data Warehousing and Data Mining
+COMP9319,Web Data Compression and Search
+COMP9321,Data Services Engineering
+COMP9331,Computer Networks and Applications
+COMP9332,Network Routing and Switching
+COMP9333,Advanced Computer Networks
+COMP9334,Capacity Planning of Computer Systems and Networks
+COMP9335,Wireless Mesh and Sensor Networks
+COMP9336,Mobile Data Networking
+COMP9414,Artificial Intelligence
+COMP9415,Computer Graphics
+COMP9417,Machine Learning and Data Mining
+COMP9418,Advanced Topics in Statistical Machine Learning
+COMP9444,Neural Networks and Deep Learning
+COMP9491,Applied Artificial Intelligence
+COMP9511,Human Computer Interaction
+COMP9517,Computer Vision
+COMP9727,Recommender Systems
+COMP9814,Extended Artificial Intelligence
+COMP9900,Information Technology Project
+COMP9991,Research Project A
+COMP9992,Research Project B
+COMP9993,Research Project C
+CVEN9050,Masters Practice Project A
+DATA5002,Data Visualisation
+DATA5011,Data Science and Decisions Project A
+DATA5012,Data Science and Decisions Project B
+DATA9001,Fundamentals of Data Science
+ECON5103,Business Economics
+ECON5111,Economics of Strategy
+ECON5206,Financial Econometrics
+ECON5321,Industrial Organisation
+ECON5324,Behavioural Economics
+ECON6202,Empirical Methods for Causal Inference
+ECON6307,Health Economics
+ECON6312,Policy Applications of Behavioural Economics
+ECON6313,Public Economics and Regulation
+FINS5548,Financial Technology
+GSOE9010,Engineering Postgraduate Coursework Research Skills
+GSOE9011,Engineering Postgraduate Coursework Research Skills
+GSOE9220,Launching a Startup
+GSOE9340,Life Cycle Engineering
+GSOE9712,Engineering Statistics
+GSOE9810,Quality in Engineering
+GSOE9820,Engineering Project Management
+GSOE9830,Economic Decision Analysis in Engineering
+GSOE9997,Engineering Work Related Learning for Postgraduates
+INFS5700,Introduction to Business Analytics
+INFS5831,Information Systems Consulting
+INFS5917,Managing Cloud and Network Security
+INFS5922,Contemporary Practices in Cybersecurity Management
+INFS5929,Cybersecurity Leadership and Risk Management
+MARK5822,Marketing Analytics Tools
+MATH5836,Data Mining and its Business Applications
+MATH5855,Multivariate Analysis
+MATH5905,Statistical Inference
+MATS6001,Fundamentals of Materials Processing
+MATS6002,Fundamentals of Materials Design
+MATS6003,Presentation Skills for Materials Technology
+MATS6004,Materials Industry Management
+MATS6113,Research Project
+MATS6114,Research Project A
+MINE8101,Fundamentals of Mining Engineering
+MINE8115,"Mine Processes, Systems and Analysis"
+MINE8120,"Hazard Identification, Risk and Safety Management in Mining"
+MINE8140,Mining Geomechanics
+MINE8440,Mining Industry Research Project 1
+MINE8760,Mine Geology and Geophysics for Mining Operations
+PHSL2121,Principles of Physiology A
+PHSL2221,Principles of Physiology B
+WCAN9000,Cyber Offence: Threats and Opportunities (Bengaluru)
+WCAN9001,Information Assurance and Security (Bengaluru)
+WCAN9002,Software Security Lifecycle (Bengaluru)
+WCAN9004,Digital Forensics (Bengaluru)
+WCAN9005,Big Data and Decision Analytics for Security (Bengaluru)
+WCAN9006,Project Report - Cyber Security (Bengaluru)
+ZBUS8302,Logistics Management
+ZCSY8701,Mission Engineering Capability Development for Socio-Technical Systems
+ZCSY8702,"Digital Engineering Foundation, Theory and Practice"
+ZCSY8703,Digital Engineering Governance
+ZCSY8704,Data Engineering
+ZCSY8707,Modelling and Simulation
+ZCSY8708,Visualisation of Complex Data
+ZEIT8007,Space Operations
+ZEIT8008,Space Systems Design
+ZEIT8012,Space Systems Engineering Management
+ZEIT8017,Cyber Crime and Cyber Security
+ZEIT8018,Cyber Resilience: Management Governance and Acquisition
+ZEIT8019,Intrusion Analysis and Response
+ZEIT8020,Cyber Offence: Threats and Opportunities
+ZEIT8021,Information Assurance and Security
+ZEIT8023,"Wireless, Mobile and Internet of Things Security"
+ZEIT8024,Software Security Lifecycle
+ZEIT8025,Reverse Engineering
+ZEIT8026,Cyber Defence: Network Security Operations
+ZEIT8027,Critical Infrastructure and Control System Security
+ZEIT8028,Digital Forensics
+ZEIT8029,Mobile Network and Memory Forensics
+ZEIT8030,Big Data and Decision Analytics for Security
+ZEIT8032,Information Assurance Principles
+ZEIT8036,Humans and Security
+ZEIT8037,Cyber Security Risk Management
+ZEIT8042,Introduction to Exploit Development
+ZEIT8043,Cyber and the Law
+ZEIT8220,Space Propulsion
+ZEIT8226,Systems Engineering Practice
+ZEIT8230,Requirements Practice
+ZEIT8242,Satellite Communications Knowledge
+ZEIT8243,Satellite Communications Project
+ZEIT8244,Systems Thinking and Modelling Knowledge
+ZEIT8245,Systems Thinking and Modelling Project
+ZEIT8247,Test and Evaluation Project
+ZEIT8248,Test and Evaluation Knowledge
+ZEIT8260,Project Report - Cyber Security (Part Time)
+ZEIT8261,Project Report - Cyber Security (Full Time)
+ZEIT8296,Project Report - Systems Engineering Part Time
+ZEIT8601,Applied Machine Learning
+ZHSS8441,Cyber-Security and World Politics
+ZHSS8455,Australian Cyber Diplomacy
+ZSPS9000,Foundations of Organisational Cyber Security
+ZSPS9001,"Cyber Security Governance, Risk and Compliance"
+ZSPS9002,Cyber Security Data Governance and Privacy
+ZSPS9003,Cyber Security Leadership and Strategy
+ZZCA6510,Decision Making in Analytics
+ZZCA8302,Project Administration
+ZZCA8303,Project Management Body of Knowledge
+ZZEN9313,Big Data Management
+ZZSC5855,Multivariate Analysis for Data Scientists
+ZZSC9001,Foundations of Data Science
