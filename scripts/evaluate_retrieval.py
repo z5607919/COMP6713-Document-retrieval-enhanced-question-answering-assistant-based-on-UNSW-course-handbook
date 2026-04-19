@@ -1,31 +1,35 @@
 #!/usr/bin/env python3
 """Evaluate retrieval quality for the UNSW Handbook RAG project.
 
-This script evaluates whether the retriever can return the annotated gold page/chunk
-for each question in annotations.csv. It is designed for the current BM25 baseline,
-and the structure is intentionally simple so that dense retrieval / QA evaluation can
-be added later.
+This script evaluates whether a retriever can return the annotated gold page/chunk
+for each question in annotations.csv.
+
+Supported methods:
+
+- bm25: the original rule-based/statistical baseline
+- dense: a pre-trained SentenceTransformer dense retriever
 
 Example usage from the project root:
 
-    # Windows PowerShell
+    # BM25 baseline
     $env:PYTHONPATH="src"
     python scripts/evaluate_retrieval.py `
-        --annotations ../MISC/annotations.csv `
-        --chunks ../MISC/chunks.jsonl `
-        --index ../MISC/bm25_index.json `
-        --out-dir ../MISC/results/bm25 `
+        --method bm25 `
+        --annotations annotations.csv `
+        --chunks data/parsed/chunks.jsonl `
+        --index data/index/bm25_index.json `
+        --out-dir data/results/bm25 `
         --top-k 1 3 5
 
-    # macOS / Linux
-    PYTHONPATH=src python scripts/evaluate_retrieval.py \
-        --annotations ../MISC/annotations.csv \
-        --chunks ../MISC/chunks.jsonl \
-        --index ../MISC/bm25_index.json \
-        --out-dir ../MISC/results/bm25 \
+    # Dense retrieval
+    $env:PYTHONPATH="src"
+    python scripts/evaluate_retrieval.py `
+        --method dense `
+        --annotations annotations.csv `
+        --chunks data/parsed/chunks.jsonl `
+        --dense-index data/index/dense_index.npz `
+        --out-dir data/results/dense `
         --top-k 1 3 5
-
-If --index is not provided, the BM25 index is rebuilt from chunks.jsonl in memory.
 """
 
 from __future__ import annotations
@@ -38,9 +42,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
-# Allow the script to be run as `python scripts/evaluate_retrieval.py` without
-# requiring the user to manually install the package. This assumes the standard
-# project layout: project_root/scripts/evaluate_retrieval.py and project_root/src/.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
 if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
@@ -63,7 +64,6 @@ except ImportError as exc:  # pragma: no cover - gives users a clearer error mes
 Annotation = Dict[str, str]
 Chunk = Dict[str, Any]
 Prediction = Dict[str, Any]
-
 
 REQUIRED_ANNOTATION_COLUMNS = {
     "id",
@@ -97,8 +97,7 @@ def read_annotations(path: str | Path) -> List[Annotation]:
         missing_columns = sorted(REQUIRED_ANNOTATION_COLUMNS - actual_columns)
         if missing_columns:
             raise ValueError(
-                "annotations file is missing required columns: "
-                + ", ".join(missing_columns)
+                "annotations file is missing required columns: " + ", ".join(missing_columns)
             )
 
         rows: List[Annotation] = []
@@ -131,7 +130,6 @@ def write_json(path: str | Path, obj: Any) -> None:
 
 
 def normalise_top_k(values: Sequence[int]) -> List[int]:
-    """Return sorted unique positive k values."""
     top_k = sorted({int(k) for k in values if int(k) > 0})
     if not top_k:
         raise ValueError("--top-k must contain at least one positive integer")
@@ -156,6 +154,38 @@ def retrieve_bm25(
     """Return top retrieved chunks and their BM25 scores."""
     ranked = bm25_score_query(question, list(chunks), index)[:limit]
     return [(chunks[i], float(score)) for i, score in ranked]
+
+
+def retrieve_with_method(
+    method: str,
+    question: str,
+    chunks: Sequence[Chunk],
+    limit: int,
+    bm25_index: Dict[str, Any] | None = None,
+    dense_index: Dict[str, Any] | None = None,
+    dense_model_name: str | None = None,
+) -> List[Tuple[Chunk, float]]:
+    """Dispatch retrieval to the selected method."""
+    if method == "bm25":
+        if bm25_index is None:
+            raise ValueError("BM25 index is not loaded.")
+        return retrieve_bm25(question, chunks, bm25_index, limit)
+
+    if method in {"dense", "dense_code"}:
+        if dense_index is None:
+            raise ValueError("Dense index is not loaded.")
+        from unsw_handbook.dense_index import retrieve_dense
+
+        return retrieve_dense(
+            question=question,
+            chunks=chunks,
+            dense_index=dense_index,
+            limit=limit,
+            model_name=dense_model_name,
+            constrain_to_question_code=(method == "dense_code"),
+        )
+
+    raise ValueError(f"Unsupported retrieval method: {method}")
 
 
 def classify_error(
@@ -185,6 +215,7 @@ def classify_error(
     if gold_section and top_section and top_section != gold_section:
         return "right_page_wrong_section"
     return "right_page_right_section_wrong_chunk"
+
 
 def evaluate_one(
     ann: Annotation,
@@ -250,7 +281,6 @@ def evaluate_one(
         record[f"chunk_hit@{k}"] = int(bool(gold_chunk_id) and gold_chunk_id in top_chunk_ids_k)
         record[f"page_hit@{k}"] = int(bool(gold_page_id) and gold_page_id in top_page_ids_k)
 
-    # This is useful for diagnosing same-page section mistakes.
     record["section_hit@1"] = int(bool(gold_section) and record["top1_section"] == gold_section)
     return record
 
@@ -307,10 +337,10 @@ def format_metric(value: Any) -> str:
     return str(value)
 
 
-def print_summary(metrics: Dict[str, Any], top_k_values: Sequence[int]) -> None:
+def print_summary(method: str, metrics: Dict[str, Any], top_k_values: Sequence[int]) -> None:
     """Print a compact human-readable summary for the terminal."""
     print("=" * 80)
-    print("Retrieval evaluation summary")
+    print(f"Retrieval evaluation summary ({method})")
     print("=" * 80)
     print(f"Examples: {metrics['n_examples']}")
     print(f"Gold chunks found in corpus: {metrics['n_gold_chunks_found_in_corpus']}")
@@ -329,29 +359,30 @@ def print_summary(metrics: Dict[str, Any], top_k_values: Sequence[int]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Evaluate BM25 retrieval against annotated gold Handbook evidence."
-    )
+    parser = argparse.ArgumentParser(description="Evaluate Handbook retrieval against annotated gold evidence.")
+    parser.add_argument("--annotations", default="annotations.csv", help="Path to annotations.csv.")
+    parser.add_argument("--chunks", default="data/parsed/chunks.jsonl", help="Path to chunks.jsonl.")
     parser.add_argument(
-        "--annotations",
-        default="annotations.csv",
-        help="Path to annotations.csv.",
-    )
-    parser.add_argument(
-        "--chunks",
-        default="data/parsed/chunks.jsonl",
-        help="Path to chunks.jsonl.",
+        "--method",
+        default="bm25",
+        choices=["bm25", "dense", "dense_code"],
+        help="Retrieval method to evaluate.",
     )
     parser.add_argument(
         "--index",
         default="",
-        help="Optional path to bm25_index.json. If omitted, the index is rebuilt from chunks.",
+        help="Optional path to bm25_index.json. If omitted, the BM25 index is rebuilt from chunks.",
     )
     parser.add_argument(
-        "--method",
-        default="bm25",
-        choices=["bm25"],
-        help="Retrieval method to evaluate. Currently supports bm25; dense can be added later.",
+        "--dense-index",
+        default="data/index/dense_index.npz",
+        help="Path to dense_index.npz for --method dense.",
+    )
+    parser.add_argument(
+        "--model-name",
+        default="",
+        help="Optional SentenceTransformer model name/local path for dense query encoding. "
+        "If omitted, the model name saved in the dense index is used.",
     )
     parser.add_argument(
         "--top-k",
@@ -362,7 +393,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--out-dir",
-        default="data/results/bm25",
+        default="data/results/retrieval",
         help="Directory where metrics and error files will be written.",
     )
     args = parser.parse_args()
@@ -378,18 +409,44 @@ def main() -> None:
     if not chunks:
         raise ValueError(f"No chunks loaded from {args.chunks}")
 
-    if args.index:
-        index = load_bm25_index(args.index)
-    else:
-        index = build_bm25_index(chunks)
+    bm25_index: Dict[str, Any] | None = None
+    dense_index: Dict[str, Any] | None = None
+
+    if args.method == "bm25":
+        if args.index:
+            bm25_index = load_bm25_index(args.index)
+        else:
+            bm25_index = build_bm25_index(chunks)
+    elif args.method in {"dense", "dense_code"}:
+        try:
+            from unsw_handbook.dense_index import load_dense_index
+        except ImportError as exc:
+            raise SystemExit(
+                "Dense retrieval code/dependencies are not available. Make sure "
+                "src/unsw_handbook/dense_index.py exists and sentence-transformers is installed. "
+                f"Original error: {exc}"
+            ) from exc
+        dense_index = load_dense_index(args.dense_index)
 
     predictions: List[Prediction] = []
     for ann in annotations:
         question = ann.get("question", "")
-        retrieved = retrieve_bm25(question, chunks, index, retrieve_limit)
+        retrieved = retrieve_with_method(
+            method=args.method,
+            question=question,
+            chunks=chunks,
+            limit=retrieve_limit,
+            bm25_index=bm25_index,
+            dense_index=dense_index,
+            dense_model_name=(args.model_name or None),
+        )
         predictions.append(evaluate_one(ann, retrieved, chunk_by_id, top_k_values))
 
     metrics = aggregate_metrics(predictions, top_k_values)
+    metrics["method"] = args.method
+    if args.method in {"dense", "dense_code"} and dense_index is not None:
+        metrics["dense_model_name"] = dense_index.get("metadata", {}).get("model_name", "")
+
     by_section = aggregate_by_group(predictions, "gold_section", top_k_values)
     by_page_type = aggregate_by_group(predictions, "page_type", top_k_values)
     by_error_type = [
@@ -457,7 +514,7 @@ def main() -> None:
     write_csv(out_dir / "metrics_by_page_type.csv", by_page_type, ["page_type", *grouped_fields])
     write_csv(out_dir / "error_type_counts.csv", by_error_type, ["error_type", "count"])
 
-    print_summary(metrics, top_k_values)
+    print_summary(args.method, metrics, top_k_values)
     print(f"Saved results to: {out_dir}")
     print("Generated files:")
     for name in [

@@ -6,3 +6,7 @@ __pycache__/
 data/parsed/
 data/index/
 data/raw_html/
+
+annotations.csv
+
+results
